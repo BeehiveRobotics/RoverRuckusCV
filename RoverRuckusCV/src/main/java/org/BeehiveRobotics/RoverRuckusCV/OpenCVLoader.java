@@ -1,4 +1,4 @@
-package org.corningrobotics.enderbots.endercv;
+package org.BeehiveRobotics.RoverRuckusCV;
 
 import android.content.Context;
 import android.os.Environment;

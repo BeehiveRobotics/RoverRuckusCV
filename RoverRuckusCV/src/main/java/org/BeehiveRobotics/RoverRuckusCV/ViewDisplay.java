@@ -1,11 +1,10 @@
-package org.corningrobotics.enderbots.endercv;
+package org.BeehiveRobotics.RoverRuckusCV;
 
-import android.app.Activity;
 import android.content.Context;
 import android.view.View;
 
 /**
- * Created by guinea on 6/23/17.
+ * Created by guinea on 6/26/17.
  * -------------------------------------------------------------------------------------
  * Copyright (c) 2018 FTC Team 5484 Enderbots
  * 
@@ -32,41 +31,10 @@ import android.view.View;
  * If you do not agree to this license, do not download, install,
  * copy or use the software.
  * -------------------------------------------------------------------------------------
- * This ViewDisplay displays a View over the entire screen.
- * As a singleton, you'll want to pass ActivityViewDisplay.getInstance() instead of directly instantiating it.
+ * Provides methods to display and remove a View from the screen.
  */
 
-public class ActivityViewDisplay implements ViewDisplay {
-    private static ActivityViewDisplay instance;
-    private static View main = null;
-
-    private ActivityViewDisplay() {
-    }
-
-    public static ActivityViewDisplay getInstance() {
-        if (instance == null) instance = new ActivityViewDisplay();
-        return instance;
-    }
-
-    public void setCurrentView(final Context context, final View view) {
-        final Activity activity = (Activity) context;
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (main == null)
-                    main = activity.getCurrentFocus();
-                activity.setContentView(view);
-            }
-        });
-    }
-
-    public void removeCurrentView(final Context context) {
-        final Activity activity = (Activity) context;
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                activity.setContentView(main.getRootView());
-            }
-        });
-    }
+public interface ViewDisplay {
+    void setCurrentView(Context context, View view);
+    void removeCurrentView(Context context);
 }
