@@ -12,6 +12,8 @@ import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Size;
+import org.opencv.core.Point;
+import org.opencv.core.Rect;
 
 import org.opencv.imgproc.Imgproc;
 
@@ -23,22 +25,24 @@ public class SampleDetector extends OpenCVPipeline {
     private final double MIN_SIZE = 0;
 
     
-    enum CubePosition {
-        LEFT, CENTER, RIGHT, UNKNOWN;
+    public static enum CubePosition {
+        LEFT, MIDDLE, RIGHT, UNKNOWN;
     }
     private boolean showContours = true;
     private boolean showRectangles = true;
     private Mat hsv = new Mat();
-    private ArrayList<MatOfPoint> yellowContours = new ArrayList<>();
-    private ArrayList<MatOfPoint> whiteContours = new ArrayList<>();
-    private ArrayList<MatOfPoint> yellowContoursFiltered = new ArrayList<>();
-    private ArrayList<MatOfPoint> whiteContoursFiltered = new ArrayList<>();
-    private ArrayList<Double> yellowYValues = new ArrayList<>();
-    private ArrayList<Double> whiteYValues = new ArrayList<>();
+    private ArrayList<MatOfPoint> yellowContours = new ArrayList<MatOfPoint>();
+    private ArrayList<MatOfPoint> whiteContours = new ArrayList<MatOfPoint>();
+    private ArrayList<MatOfPoint> yellowContoursFiltered = new ArrayList<MatOfPoint>();
+    private ArrayList<MatOfPoint> whiteContoursFiltered = new ArrayList<MatOfPoint>();
+    private ArrayList<Rect> yellowRects = new ArrayList<Rect>();
+    private ArrayList<Rect> whiteRects = new ArrayList<Rect>();
+    private ArrayList<Double> yellowYValues = new ArrayList<Double>();
+    private ArrayList<Double> whiteYValues = new ArrayList<Double>();
     private Mat yellowThreshold = new Mat();
     private Mat whiteThreshold = new Mat();
     private ArrayList<Double> sizes = new ArrayList<>();
-    private CubePosition currentCubePosition = UNKNOWN;
+    private CubePosition currentCubePosition = CubePosition.UNKNOWN;
     
     public synchronized void showContours(boolean enabled) {
         showContours = enabled;
@@ -64,18 +68,20 @@ public class SampleDetector extends OpenCVPipeline {
         Imgproc.blur(yellowThreshold, yellowThreshold, new Size(3, 3));
         Imgproc.blur(whiteThreshold, whiteThreshold, new Size(3, 3));
 
-        // Clear all contour lists
+        // Clear all lists
         yellowContours.clear();
         whiteContours.clear();
         yellowContoursFiltered.clear();
         whiteContoursFiltered.clear();
+        yellowRects.clear();
+        whiteRects.clear();
 
         // Fills contour list with outlines of yellow and white
         Imgproc.findContours(yellowThreshold, yellowContours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
         Imgproc.findContours(whiteThreshold, whiteContours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
         
-        yellowContoursFiltered = yellowContours.clone();
-        whiteContoursFiltered = whiteContours.clone();
+        yellowContoursFiltered = new ArrayList<>(yellowContours);
+        whiteContoursFiltered = new ArrayList<>(whiteContours);
 
         for(MatOfPoint contour: yellowContoursFiltered) {
             if(contour.size().height > MIN_SIZE) {
@@ -94,20 +100,17 @@ public class SampleDetector extends OpenCVPipeline {
             // Draws the outlines of the white over the image on the screen. Colored green.
             Imgproc.drawContours(rgba, whiteContoursFiltered, -1, new Scalar(0, 255, 0), 2, 8);
         }
-        /*
+       
         for(MatOfPoint contour: yellowContoursFiltered) {
-            sizes.add(contour.size().height);
-        }
-        */
-
-        for(MatOfPoint contour: yellowContoursFiltered) {
-            Rect rectangle = Imgproc.boundingRect(c);
+            Rect rectangle = Imgproc.boundingRect(contour);
             double x = rectangle.x;
             double y = rectangle.y;
             double w = rectangle.width;
             double h = rectangle.height;
 
-            Point centerPoint = new Point(x + ( w/2), y + (h/2));
+            Point centerPoint = new Point(x + (w/2), y + (h/2));
+
+            yellowRects.add(rectangle);
 
             if(showRectangles) {
                 Imgproc.rectangle(rgba, new Point(x, y), new Point((x+w), (y+h)), new Scalar(0, 0, 255), 1);
@@ -115,25 +118,42 @@ public class SampleDetector extends OpenCVPipeline {
         }
 
         for(MatOfPoint contour: whiteContoursFiltered) {
-            Rect rectangle = Imgproc.boundingRect(c);
+            Rect rectangle = Imgproc.boundingRect(contour);
             double x = rectangle.x;
             double y = rectangle.y;
             double w = rectangle.width;
             double h = rectangle.height;
 
-            Point centerPoint = new Point(x + ( w/2), y + (h/2));
+            Point centerPoint = new Point(x + (w/2), y + (h/2));
+
+            whiteRects.add(rectangle);
 
             if(showRectangles) {
                 Imgproc.rectangle(rgba, new Point(x, y), new Point((x+w), (y+h)), new Scalar(0, 255, 0), 1);
             }
-        }        
-        
+        }   
+
+        if(yellowRects.size() == 1 && whiteRects.size() == 2) {
+            if(yellowRects.get(0).x < whiteRects.get(0).x) {
+                if(yellowRects.get(0).x < whiteRects.get(1).x) {
+                    currentCubePosition = CubePosition.LEFT;
+                } else {
+                    currentCubePosition = CubePosition.MIDDLE;
+                }
+            } else {
+                if(yellowRects.get(0).x > whiteRects.get(1).x) {
+                    currentCubePosition = CubePosition.RIGHT;
+                } else {
+                    currentCubePosition = CubePosition.MIDDLE;
+                }
+            }
+            Imgproc.putText(rgba, currentCubePosition.toString(), new Point(5, 5), 0, 0.5, new Scalar(0,255,255));
+        }
+
         return rgba;
     }
-    public ArrayList<Double> getSizes() {
-        return this.sizes;
-    }
-    public CubePosition getCubePosition(int framesToTest) {
+
+    public CubePosition getCubePosition(int framesToTest) throws InterruptedException {
         int left = 0;
         int middle = 0;
         int right = 0;
@@ -142,21 +162,23 @@ public class SampleDetector extends OpenCVPipeline {
                 case LEFT: left++;
                 case MIDDLE: middle++;
                 case RIGHT: right++;
+                case UNKNOWN: 
             }
+            Thread.sleep(30);
         }
         if(left > middle) {
             if(left > right) {
-                return LEFT;
+                return CubePosition.LEFT;
             } else {
-                return RIGHT;
+                return CubePosition.RIGHT;
             }
         } else {
             if(middle > right) {
-                return MIDDLE;
+                return CubePosition.MIDDLE;
             } else {
-                return RIGHT;
+                return CubePosition.RIGHT;
             }
         }
     }
-    public CubePosition getCubePosition() {return getCubePosition(30);}
+    public CubePosition getCubePosition() throws InterruptedException {return getCubePosition(30);}
 }
